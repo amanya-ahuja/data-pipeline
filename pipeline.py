@@ -72,7 +72,7 @@ def fetch_exchange_rates() -> pd.DataFrame:
     """Fetch daily USD -> INR exchange rate for the same lookback window."""
     end = date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
-    url = f"{FX_URL}/{start.isoformat()}..{end.isoformat()}
+    url = f"{FX_URL}/{start.isoformat()}..{end.isoformat()}"
     resp = fetch_with_retry(url, params={"from": "USD", "to": "INR"})
     rates = resp.json()["rates"]
 
