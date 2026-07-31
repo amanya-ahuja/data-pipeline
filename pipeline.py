@@ -19,6 +19,21 @@ from datetime import date, timedelta
 import pandas as pd
 import requests
 
+import time
+
+def fetch_with_retry(url, params=None, retries=3, backoff=5, timeout=20):
+    """GET request with retries on transient network/server errors."""
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(url, params=params, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.RequestException as e:
+            print(f"  Attempt {attempt}/{retries} failed: {e}")
+            if attempt == retries:
+                raise
+            time.sleep(backoff * attempt)
+
 # ---- Config -----------------------------------------------------
 LATITUDE = 29.92          # Sri Ganganagar, Rajasthan
 LONGITUDE = 73.88
@@ -28,7 +43,7 @@ CSV_PATH = "data/merged_data.csv"
 TABLE_NAME = "daily_metrics"
 
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
-FX_URL = "https://api.frankfurter.app"
+FX_URL = "https://api.frankfurter.dev/v1"
 
 
 def fetch_weather() -> pd.DataFrame:
@@ -41,8 +56,7 @@ def fetch_weather() -> pd.DataFrame:
         "past_days": LOOKBACK_DAYS,
         "forecast_days": 1,
     }
-    resp = requests.get(WEATHER_URL, params=params, timeout=20)
-    resp.raise_for_status()
+    resp = fetch_with_retry(WEATHER_URL, params=params)
     daily = resp.json()["daily"]
 
     df = pd.DataFrame({
@@ -58,9 +72,8 @@ def fetch_exchange_rates() -> pd.DataFrame:
     """Fetch daily USD -> INR exchange rate for the same lookback window."""
     end = date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
-    url = f"{FX_URL}/{start.isoformat()}..{end.isoformat()}"
-    resp = requests.get(url, params={"from": "USD", "to": "INR"}, timeout=20)
-    resp.raise_for_status()
+    url = f"{FX_URL}/{start.isoformat()}..{end.isoformat()}
+    resp = fetch_with_retry(url, params={"from": "USD", "to": "INR"})
     rates = resp.json()["rates"]
 
     records = [{"date": d, "usd_inr_rate": v["INR"]} for d, v in rates.items()]
